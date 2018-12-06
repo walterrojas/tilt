@@ -1,6 +1,6 @@
 # From Docker Compose
 ## Before you begin
-* [Install Tilt](quickstart.html) and Kubernetes if they are not yet installed.
+* [Install Tilt](install.html) and Kubernetes if they are not yet installed.
 * If you're new to Tilt try stepping through [a Simple Tiltfile](first_config.html) first.
 
 ## Differences between Docker Compose and Tilt
