@@ -119,7 +119,7 @@ func (s *tiltfileState) dockerBuild(thread *starlark.Thread, fn *starlark.Builti
 		cachePaths:           cachePaths,
 	}
 	s.imagesByName[ref.Name()] = r
-	s.images = append(s.images, r)
+	s.builtImages = append(s.builtImages, r)
 
 	return starlark.None, nil
 }
@@ -176,10 +176,33 @@ func (s *tiltfileState) fastBuild(thread *starlark.Thread, fn *starlark.Builtin,
 		cachePaths:         cachePaths,
 	}
 	s.imagesByName[ref.Name()] = r
-	s.images = append(s.images, r)
+	s.builtImages = append(s.builtImages, r)
 
 	fb := &fastBuild{s: s, img: r}
 	return fb, nil
+}
+
+func (s *tiltfileState) noBuild(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var dockerRef string
+	if err := starlark.UnpackArgs(fn.Name(), args, kwargs,
+		"ref", &dockerRef,
+	); err != nil {
+		return nil, err
+	}
+
+	ref, err := reference.ParseNormalizedNamed(dockerRef)
+	if err != nil {
+		return nil, fmt.Errorf("Argument 1 (ref): can't parse %q: %v", dockerRef, err)
+	}
+
+	if s.imagesByName[ref.Name()] != nil {
+		return nil, fmt.Errorf("Image for ref %q has already been defined", ref.Name())
+	}
+
+	s.imagesByName[ref.Name()] = &dockerImage{ref: ref}
+	s.unbuiltImages = append(s.unbuiltImages, ref)
+
+	return starlark.None, nil
 }
 
 func (s *tiltfileState) cachePathsFromSkylarkValue(val starlark.Value) ([]string, error) {

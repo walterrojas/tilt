@@ -56,6 +56,15 @@ func (m Manifest) ImageTargetAt(i int) ImageTarget {
 
 type DockerBuildArgs map[string]string
 
+func (m Manifest) ImageRefs() []reference.Named {
+	var ret []reference.Named
+	for _, it := range m.ImageTargets {
+		ret = append(ret, it.Ref)
+	}
+
+	return ret
+}
+
 func (m Manifest) DockerComposeTarget() DockerComposeTarget {
 	ret, _ := m.deployTarget.(DockerComposeTarget)
 	return ret

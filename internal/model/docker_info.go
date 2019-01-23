@@ -55,7 +55,7 @@ func (i ImageTarget) Validate() error {
 					"[Validate] Image %q: mount must be an absolute path (got: %s)", i.Ref, mnt.LocalPath)
 			}
 		}
-
+	case NoBuild:
 	default:
 		return fmt.Errorf("[Validate] Image %q has neither StaticBuildInfo nor FastBuildInfo", i.Ref)
 	}
@@ -152,6 +152,11 @@ func (i ImageTarget) WithTiltFilename(f string) ImageTarget {
 func (i ImageTarget) Dependencies() []string {
 	return sliceutils.DedupedAndSorted(i.LocalPaths())
 }
+
+type NoBuild struct {
+}
+
+func (NoBuild) buildDetails() {}
 
 type StaticBuild struct {
 	Dockerfile string

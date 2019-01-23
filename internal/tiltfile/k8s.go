@@ -24,7 +24,7 @@ type k8sResource struct {
 
 	// All image refs, including:
 	// 1) one that the user manually asked to be associated with this resources, and
-	// 2) images that were auto-inferred from the included k8s resources.
+	// 2) builtImages that were auto-inferred from the included k8s resources.
 	imageRefs map[string]bool
 
 	portForwards []portForward

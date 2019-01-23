@@ -1,7 +1,7 @@
 package engine
 
 import (
-	context "context"
+	"context"
 	"fmt"
 	"time"
 
@@ -12,14 +12,14 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/docker/distribution/reference"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/windmilleng/tilt/internal/build"
 	"github.com/windmilleng/tilt/internal/ignore"
 	"github.com/windmilleng/tilt/internal/k8s"
 	"github.com/windmilleng/tilt/internal/model"
 	"github.com/windmilleng/tilt/internal/synclet/sidecar"
 	"github.com/windmilleng/wmclient/pkg/analytics"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 )
 
 var _ BuildAndDeployer = &ImageBuildAndDeployer{}
@@ -61,7 +61,7 @@ func (ibd *ImageBuildAndDeployer) SetInjectSynclet(inject bool) {
 
 func (ibd *ImageBuildAndDeployer) BuildAndDeploy(ctx context.Context, specs []model.TargetSpec, stateSet store.BuildStateSet) (resultSet store.BuildResultSet, err error) {
 	iTargets, kTargets := extractImageAndK8sTargets(specs)
-	if len(kTargets) == 0 || len(iTargets) == 0 {
+	if len(kTargets) == 0 && len(iTargets) == 0 {
 		return store.BuildResultSet{}, RedirectToNextBuilderf("ImageBuildAndDeployer does not support these specs")
 	}
 
@@ -96,6 +96,9 @@ func (ibd *ImageBuildAndDeployer) BuildAndDeploy(ctx context.Context, specs []mo
 		ref, err := ibd.build(ctx, iTarget, stateSet[iTarget.ID()], ps)
 		if err != nil {
 			return store.BuildResultSet{}, err
+		}
+		if ref == nil {
+			continue
 		}
 		results[iTarget.ID()] = store.BuildResult{
 			Image: ref,
@@ -172,6 +175,8 @@ func (ibd *ImageBuildAndDeployer) build(ctx context.Context, iTarget model.Image
 			}
 			n = ref
 		}
+	case model.NoBuild:
+		return n, nil
 	default:
 		// Theoretically this should never trip b/c we `validate` the manifest beforehand...?
 		// If we get here, something is very wrong.

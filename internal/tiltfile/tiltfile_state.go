@@ -27,7 +27,8 @@ type tiltfileState struct {
 
 	// added to during execution
 	configFiles    []string
-	images         []*dockerImage
+	builtImages    []*dockerImage
+	unbuiltImages  []reference.Named
 	imagesByName   map[string]*dockerImage
 	k8s            []*k8sResource
 	k8sByName      map[string]*k8sResource
@@ -72,6 +73,7 @@ const (
 	dockerComposeN = "docker_compose"
 	dockerBuildN   = "docker_build"
 	fastBuildN     = "fast_build"
+	noBuildN       = "no_build"
 
 	// k8s functions
 	k8sYamlN     = "k8s_yaml"
@@ -103,6 +105,7 @@ func (s *tiltfileState) builtins() starlark.StringDict {
 	addBuiltin(r, dockerComposeN, s.dockerCompose)
 	addBuiltin(r, dockerBuildN, s.dockerBuild)
 	addBuiltin(r, fastBuildN, s.fastBuild)
+	addBuiltin(r, noBuildN, s.noBuild)
 	addBuiltin(r, k8sYamlN, s.k8sYaml)
 	addBuiltin(r, k8sResourceN, s.k8sResource)
 	addBuiltin(r, portForwardN, s.portForward)
@@ -122,7 +125,7 @@ func (s *tiltfileState) assemble() (resourceSet, []k8s.K8sEntity, error) {
 	}
 	for _, image := range images {
 		if _, ok := s.imagesByName[image.Name()]; !ok {
-			// only expand for images we know how to build
+			// only expand for images we've been told about
 			continue
 		}
 		target, err := s.findExpandTarget(image)
@@ -163,7 +166,7 @@ func (s *tiltfileState) validateK8s(r *k8sResource, assembledImages map[string]b
 			return fmt.Errorf("resource %q: no matching resource", r.name)
 		}
 
-		return fmt.Errorf("resource %q: could not find images %q; perhaps there's a typo?", r.name, r.providedImageRefList())
+		return fmt.Errorf("resource %q: could not find builtImages %q; perhaps there's a typo?", r.name, r.providedImageRefList())
 	}
 
 	for ref := range r.imageRefs {
@@ -307,30 +310,31 @@ func (s *tiltfileState) translateK8s(resources []*k8sResource) ([]model.Manifest
 			isStaticBuild := !image.staticBuildPath.Empty()
 			isFastBuild := !image.baseDockerfilePath.Empty()
 
-			iTarget := model.ImageTarget{
-				Ref: image.ref,
-			}.WithCachePaths(image.cachePaths)
-
 			if isStaticBuild && isFastBuild {
 				return nil, fmt.Errorf("cannot populate both staticBuild and fastBuild properties")
-			} else if isStaticBuild {
-				iTarget = iTarget.WithBuildDetails(model.StaticBuild{
+			}
+
+			var buildDetails model.BuildDetails
+			if isStaticBuild {
+				buildDetails = model.StaticBuild{
 					Dockerfile: image.staticDockerfile.String(),
 					BuildPath:  string(image.staticBuildPath.path),
 					BuildArgs:  image.staticBuildArgs,
-				})
+				}
 			} else if isFastBuild {
-				iTarget = iTarget.WithBuildDetails(model.FastBuild{
+				buildDetails = model.FastBuild{
 					BaseDockerfile: image.baseDockerfile.String(),
 					Mounts:         s.mountsToDomain(image),
 					Steps:          image.steps,
 					Entrypoint:     model.ToShellCmd(image.entrypoint),
-				})
+				}
 			} else {
-				return nil, fmt.Errorf("internal Tilt error: no build info for manifest %s", r.name)
+				buildDetails = model.NoBuild{}
 			}
-
-			iTarget = iTarget.
+			iTarget := model.ImageTarget{
+				Ref: image.ref,
+			}.WithCachePaths(image.cachePaths).
+				WithBuildDetails(buildDetails).
 				WithRepos(s.reposForImage(image)).
 				WithDockerignores(s.dockerignoresForImage(image)).
 				WithTiltFilename(s.filename.path)

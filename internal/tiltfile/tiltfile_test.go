@@ -1323,7 +1323,7 @@ func (f *fixture) setupFooAndBar() {
 	f.gitInit("")
 }
 
-// expand has 4 images, a-d, and a yaml with all of it
+// expand has 4 builtImages, a-d, and a yaml with all of it
 func (f *fixture) setupExpand() {
 	f.dockerfile("a/Dockerfile")
 	f.dockerfile("b/Dockerfile")

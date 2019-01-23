@@ -496,9 +496,9 @@ func ensureManifestTargetWithPod(state *store.EngineState, pod *v1.Pod) (*store.
 	manifest := mt.Manifest
 
 	var imageID reference.NamedTagged
-	for _, iTarget := range manifest.ImageTargets {
+	for _, ref := range manifest.ImageRefs() {
 		var err error
-		imageID, err = k8s.FindImageNamedTaggedMatching(pod.Spec, iTarget.Ref)
+		imageID, err = k8s.FindImageNamedTaggedMatching(pod.Spec, ref)
 		if err != nil {
 			// Ditto, this could happen if we get a pod from an old version of the manifest.
 			return nil, nil
@@ -509,11 +509,6 @@ func ensureManifestTargetWithPod(state *store.EngineState, pod *v1.Pod) (*store.
 		}
 	}
 
-	if imageID == nil {
-		// Ditto, this could happen if we get a pod from an old version of the manifest.
-		return nil, nil
-	}
-
 	// There are 4 cases:
 	// 1) This pod has an imageID we don't recognize because it's an old build
 	// 2) This pod has an imageID we don't recognize because it's a new build
@@ -521,9 +516,7 @@ func ensureManifestTargetWithPod(state *store.EngineState, pod *v1.Pod) (*store.
 	// 4) This pod has an imageID we recognize, and we've already recorded it.
 
 	// (1) + (2)
-	if ms.PodSet.ImageID == nil ||
-		ms.PodSet.ImageID.String() != imageID.String() {
-
+	if ms.PodSet.ImageID == nil || ms.PodSet.ImageID.String() != imageID.String() {
 		bestPod := ms.MostRecentPod()
 		isOld := !bestPod.Empty() && bestPod.StartedAt.After(startedAt)
 		if isOld {
@@ -615,8 +608,8 @@ func handlePodEvent(ctx context.Context, state *store.EngineState, pod *v1.Pod) 
 	// Check if the container is ready.
 	var cStatus v1.ContainerStatus
 	var err error
-	for _, iTarget := range manifest.ImageTargets {
-		cStatus, err = k8s.ContainerMatching(pod, iTarget.Ref)
+	for _, ref := range manifest.ImageRefs() {
+		cStatus, err = k8s.ContainerMatching(pod, ref)
 		if err != nil {
 			logger.Get(ctx).Debugf("Error matching container: %v", err)
 			return
